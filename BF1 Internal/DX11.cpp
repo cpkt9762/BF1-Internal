@@ -18,47 +18,6 @@ CVMTHookManager64* pfh;
 
 int __stdcall HookedPerFrame(uintptr_t _this, float a1)
 {
-	CEntity* LocalPlayer = Game::GetLocalPlayer();
-	if (Mem::IsValid(LocalPlayer) && Mem::IsValid(LocalPlayer->GetSoldier()))
-	{
-		CSoldier* LPSoldier = LocalPlayer->GetSoldier();
-		if ((Mem::IsValid(LPSoldier) && Mem::IsValid(LPSoldier->Transform)) || (Mem::IsValid(LocalPlayer->GetCurrentVehicle())))
-		{
-			CEntityList* EntityList = Game::GetEntityList();
-
-			if (Mem::IsValid(EntityList))
-			{
-				for (int i = 0; i < 64; i++)
-				{
-					CEntity* Ent = EntityList->GetEntity(i);
-					if (Mem::IsValid(Ent))
-					{
-						CSoldier* EntSoldier = Ent->GetSoldier();
-						if (Mem::IsValid(EntSoldier) && Mem::IsValid(EntSoldier->HealthComponent) && EntSoldier->HealthComponent->HP >= 1.f && EntSoldier->HealthComponent->HP <= 100.f)
-						{
-							Vector3 Pos;
-							if (EntSoldier->GetBonePosition(Pos, Aimbot::Bone))
-							{
-								RayCaster* Raycast = RayCaster::Get();
-								if (Mem::IsValid(Raycast))
-								{
-									RayCastHit Hit;
-									Vector3 LocalPos = LPSoldier->GetShootSpace() + Vector3(0.f, 0.f, 0.f);
-
-									__declspec(align(16)) Vector4 From = LocalPos;
-									__declspec(align(16)) Vector4 To = Pos;
-
-									bool visible = Raycast->PhysicsRayQuery("VCs", &From, &To, &Hit, (0x4 | 0x10 | 0x20 | 0x80), NULL);
-									VisibleEntities[EntSoldier] = !visible;
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
 	return PerFrameHook(_this, a1);
 }
 
@@ -85,7 +44,7 @@ void DX11Renderer::DX11RenderScene()
 							static bool MainMenu = true;
 							static bool LogOpened = true;
 							ImGui::SetNextWindowPos(ImVec2(0, 0));
-							if (ImGui::Begin("BF1 Hack by Tonyx97 - UnKnoWnCheaTs", &MainMenu, ImVec2(450, ScreenSY / 2), 0.4f, ImGuiWindowFlags_NoSavedSettings))
+							if (ImGui::Begin(("BF! Hack - " + std::string(LocalPlayer->Name)).c_str(), &MainMenu, ImVec2(450, ScreenSY / 2), 0.4f, ImGuiWindowFlags_NoSavedSettings))
 							{
 								ImGui::TextColored(SSCleaner->BitBltState ? ImColor(0, 255, 0) : ImColor(255, 0, 0), "BB: %s", SSCleaner->BitBltState ? "Yes" : "No");
 								/*ImGui::TextColored(SSCleaner->CopyResourceState ? ImColor(0, 255, 0) : ImColor(255, 0, 0), "CR: %s", SSCleaner->CopyResourceState ? "Yes" : "No");
@@ -157,16 +116,16 @@ void DX11Renderer::DX11RenderScene()
 					if (Mem::IsValid(LocalPlayer) && Mem::IsValid(LocalPlayer->GetSoldier()))
 					{
 						CSoldier* LPSoldier = LocalPlayer->GetSoldier();
-						if ((Mem::IsValid(LPSoldier) && Mem::IsValid(LPSoldier->Transform)) || (Mem::IsValid(LocalPlayer->GetCurrentVehicle())))
+						if ((Mem::IsValid(LPSoldier) && Mem::IsValid(LPSoldier->prediction)) || (Mem::IsValid(LocalPlayer->GetCurrentVehicle())))
 						{
 							if (Features::ShowFOV)
 								DrawCircle(ScreenSX / 2.f, ScreenSY / 2.f, Color(0, 255, 255, 255), Aimbot::FOV, 25);
 
 							//PLAYERS
 							CEntityList* EntityList = Game::GetEntityList();
-							/*ClientPlayerManager* PlayerManager = Game::GetClientPlayerManager();
+							ClientPlayerManager* PlayerManager = Game::GetClientPlayerManager();
 
-							if (Mem::IsValid(PlayerManager))
+							/*if (Mem::IsValid(PlayerManager))
 							{
 								CSpectatorList* SpectatorList = PlayerManager->GetSpectators();
 								if (Mem::IsValid(SpectatorList))
@@ -190,21 +149,36 @@ void DX11Renderer::DX11RenderScene()
 								}
 							}*/
 
-
 							if (Mem::IsValid(EntityList))
 							{
+								std::ofstream outputFile;
+								outputFile.open(L"C:\\Users\\bestp\\Desktop\\log_ESP.log");
+								outputFile << "start" << std::endl;
 								for (int i = 0; i < 64; i++)
 								{
+									outputFile << i << " ===== " << std::endl;
+
 									CEntity* Ent = EntityList->GetEntity(i);
 									if (Mem::IsValid(Ent))
 									{
 										CSoldier* EntSoldier = Ent->GetSoldier();
+										outputFile << "CEntity->getSoldier() -- ok" << std::endl;
+										outputFile << "Is CSoldier valid: " << Mem::IsValid(EntSoldier) << std::endl;
+										if (Mem::IsValid(EntSoldier)) {
+											outputFile << "Soldier Name: " << Ent->Name << std::endl;
+											outputFile << "Is HealthComponent valid: " << Mem::IsValid(EntSoldier->HealthComponent) << std::endl;
+											if (Mem::IsValid(EntSoldier->HealthComponent)) {
+												outputFile << "HealthComponent HP: " <<  EntSoldier->HealthComponent->HP << std::endl;
+											}
+										}
+
 										if (Mem::IsValid(EntSoldier) && Mem::IsValid(EntSoldier->HealthComponent) && EntSoldier->HealthComponent->HP >= 1.f && EntSoldier->HealthComponent->HP <= 100.f)
 										{
 											Vector3 HeadPos;
 											if (!EntSoldier->GetBonePosition(HeadPos, 53))
 												continue; 
 											HeadPos = EntSoldier->GetPosition() + Vector3(0.f, 2.f, 0.f);
+											outputFile << "HEAD: " << HeadPos.x << " " << HeadPos.y << " " << HeadPos.z << std::endl;
 
 											Vector3 FeetPos = EntSoldier->GetPosition();
 											Vector3 HeadSP;
@@ -223,7 +197,8 @@ void DX11Renderer::DX11RenderScene()
 												if (Ent->GetTeam() != LocalPlayer->GetTeam())
 												{
 													Enemy = true;
-													if (VisibleEntities[EntSoldier])
+
+													if(!EntSoldier->m_Occluded) // czy go widac?
 													{
 														Visible = true;
 														BoxColor = Color(0, 255, 0, 255);
@@ -438,6 +413,7 @@ void DX11Renderer::DX11RenderScene()
 										}
 									}
 								}
+								outputFile.close();
 							}
 						}
 					}
@@ -462,7 +438,7 @@ HRESULT HookedDX11Renderer(IDXGISwapChain* _SwapChain, UINT SyncInterval, UINT F
 	return DX11HookPresent(_SwapChain, SyncInterval, Flags);
 }
 
-DWORD DX11Renderer::InitDevice(HMODULE _DllModule, const char* HWNDTarget)
+DWORD DX11Renderer::InitDevice(HMODULE _DllModule, const wchar_t* HWNDTarget)
 {
 	while (true)
 	{

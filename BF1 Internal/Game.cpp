@@ -1,9 +1,7 @@
 #include "stdafx.h"
 
-
 BOOLEAN Game::ThreadState[3] = { TRUE };
 bool Game::cursorOn = false;
-
 
 bool Features::ESP = true;
 bool Features::Aimbot = true;
@@ -18,11 +16,11 @@ bool Features::ShowHealth = true;
 bool Features::ShowName = true;
 bool Features::ShowDistance = true;
 bool Features::ShowESPBoxes = true;
-float Features::ESPDistance = 100.f;
+float Features::ESPDistance = 999.f;
 
 std::map<QWORD, SwayDataSaved> SwayData;
 std::map<QWORD, BulletDataSaved> BulletData;
-std::map<CSoldier*, bool> VisibleEntities;
+//std::map<CSoldier*, bool> VisibleEntities;
 
 Vector3 posos;
 
