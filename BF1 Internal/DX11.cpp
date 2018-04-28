@@ -35,23 +35,33 @@ void DX11Renderer::DX11RenderScene()
 			//{
 				if (Features::ShowMenu)
 				{
-					CEntity* LocalPlayer = Game::GetLocalPlayer();
+					ClientEntity* LocalPlayer = Game::GetLocalPlayer();
 					if (Mem::IsValid(LocalPlayer))
 					{
-						CSoldier* LPSoldier = LocalPlayer->GetSoldier();
-						if (Mem::IsValid(LPSoldier) || Mem::IsValid(LocalPlayer->GetCurrentVehicle()))
+						ClientSoldierEntity* LPSoldier = LocalPlayer->getSoldier();
+						if (Mem::IsValid(LPSoldier) || Mem::IsValid(LocalPlayer->getVehicle()))
 						{
 							static bool MainMenu = true;
 							static bool LogOpened = true;
 							ImGui::SetNextWindowPos(ImVec2(0, 0));
-							if (ImGui::Begin(("BF! Hack - " + std::string(LocalPlayer->Name)).c_str(), &MainMenu, ImVec2(450, ScreenSY / 2), 0.4f, ImGuiWindowFlags_NoSavedSettings))
+							if (ImGui::Begin(("BF1 Internal - player: " + std::string(LocalPlayer->Name)).c_str(), &MainMenu, ImVec2(450, ScreenSY / 2), 0.4f, ImGuiWindowFlags_NoSavedSettings))
 							{
 								ImGui::TextColored(SSCleaner->BitBltState ? ImColor(0, 255, 0) : ImColor(255, 0, 0), "BB: %s", SSCleaner->BitBltState ? "Yes" : "No");
 								/*ImGui::TextColored(SSCleaner->CopyResourceState ? ImColor(0, 255, 0) : ImColor(255, 0, 0), "CR: %s", SSCleaner->CopyResourceState ? "Yes" : "No");
 								ImGui::TextColored(SSCleaner->CopySubresourceRegionState ? ImColor(0, 255, 0) : ImColor(255, 0, 0), "CSR: %s", SSCleaner->CopySubresourceRegionState ? "Yes" : "No");*/
 
-								//ImGui::TextColored(ImColor(0, 255, 0), "Slot: %i", LPSoldier->GetActiveSlot());
-								//ImGui::TextColored(ImColor(0, 255, 0), "BV: %.1f", LPSoldier->GetBulletVelocity());
+								/*ImGui::TextColored(ImColor(0, 255, 0), "Weapon Slot: %i", LPSoldier->GetActiveSlot());
+								ImGui::TextColored(ImColor(0, 255, 0), "Bullet Velocity: %.1f", LPSoldier->GetBulletVelocity());
+								ImGui::TextColored(ImColor(0, 255, 0), "Bullet Gravity: %.1f", LPSoldier->GetBulletGravity());
+								ImGui::TextColored(ImColor(0, 255, 0), "Time to Live: %.1f", LPSoldier->GetTimeToLive());
+								ImGui::TextColored(ImColor(0, 255, 0), "Breath: %.1f", LPSoldier->getBreath());
+								ImGui::TextColored(ImColor(0, 255, 0), "InstantHit: %d", LPSoldier->GetInstantHit());
+								ImGui::TextColored(ImColor(0, 255, 0), "ShootingRecoilDecreaseScale: %.1f", LPSoldier->getShootingRecoilDecreaseScale());
+								ImGui::TextColored(ImColor(0, 255, 0), "FirstShotNoZoomDispersionMultiplier: %.1f", LPSoldier->getFirstShotNoZoomDispersionMultiplier());
+								ImGui::TextColored(ImColor(0, 255, 0), "FirstShotZoomDispersionMultiplier: %.1f", LPSoldier->getFirstShotZoomDispersionMultiplier());
+								ImGui::TextColored(ImColor(0, 255, 0), "FirstShotRecoilMultiplier: %.1f", LPSoldier->getFirstShotRecoilMultiplier());
+								ImGui::TextColored(ImColor(0, 255, 0), "PowerOfDispersionRandoms: %.1f", LPSoldier->getPowerOfDispersionRandoms());*/
+
 								/*if (ImGui::CollapsingHeader("Log"))
 									if (Mem::IsValid(Log.get()))
 										Log->Draw("", &LogOpened);*/
@@ -86,7 +96,7 @@ void DX11Renderer::DX11RenderScene()
 									ImGui::SliderInt("Retarget Timer", &Aimbot::RetargetTimer, 1.f, 1000);
 
 									const char* Bones[] = { "Head", "Chest", "Neck" };
-									static int BoneSelected = -1;
+									static int BoneSelected = 0;
 									ImGui::TextColored(ImColor(0, 255, 0), "Actual Bone: %i", Aimbot::Bone);
 									ImGui::Checkbox("Random Bone", &Aimbot::RandomBone);
 									if (ImGui::Combo("Bones", &BoneSelected, Bones, 3))
@@ -101,8 +111,12 @@ void DX11Renderer::DX11RenderScene()
 								}
 								if (ImGui::CollapsingHeader("Misc"))
 								{
-									ImGui::Checkbox("No Sway/Recoil", &Features::NoSway);
+									ImGui::Checkbox("Crosshair", &Features::Crosshair);
+									ImGui::Checkbox("No Recoil", &Features::NoRecoil);
+									ImGui::Checkbox("No Breath", &Features::NoBreath);
+									ImGui::Checkbox("No Sway", &Features::NoSway);
 									ImGui::Checkbox("Instant Hit", &Features::InstantHit);
+									ImGui::Checkbox("Radar", &Features::Radar);
 								}
 								ImGui::End();
 							}
@@ -110,32 +124,124 @@ void DX11Renderer::DX11RenderScene()
 					}
 				}
 
+				if (Features::Radar) {
+					ImVec2 position = ImVec2(ScreenSX, 0);
+					float size = 250.f;
+
+					ImVec2 radarSize = ImVec2(size, size);
+					ImColor radarLinesColor = ImColor(100, 100, 100, 255);
+
+					ClientEntity* LocalPlayer = Game::GetLocalPlayer();
+					ClientEntityList* EntityList = Game::GetEntityList();
+
+					ImGuiWindowFlags wFlags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse;
+					if (!Features::ShowMenu)
+					{
+						wFlags |= ImGuiWindowFlags_NoInputs;
+						wFlags |= ImGuiWindowFlags_NoMove;
+						wFlags |= ImGuiWindowFlags_NoTitleBar;
+					}
+
+					ImGui::SetNextWindowPos(position, ImGuiSetCond_FirstUseEver);
+					if (ImGui::Begin("Radar", &Features::Radar, radarSize, 0.4f, wFlags))
+					{
+						ImVec2 pos1 = ImGui::GetWindowPos();
+						ImVec2 center = ImVec2(pos1.x + radarSize.x / 2, pos1.y + radarSize.y / 2);
+						ImGui::GetWindowDrawList()->AddLine(ImVec2(pos1.x, pos1.y), center, radarLinesColor);
+						ImGui::GetWindowDrawList()->AddLine(ImVec2(pos1.x + radarSize.x, pos1.y), center, radarLinesColor);
+						ImGui::GetWindowDrawList()->AddLine(ImVec2(pos1.x, pos1.y + radarSize.y / 2), ImVec2(pos1.x + radarSize.x, pos1.y + radarSize.y / 2), radarLinesColor);
+						ImGui::GetWindowDrawList()->AddLine(center, ImVec2(pos1.x + radarSize.x / 2, pos1.y + radarSize.y), radarLinesColor);
+
+						float b = 15.f;
+						float d = (b / (2.f * sin(70.f / 2.f))) * cos(70.f / 2.f);
+						ImGui::GetWindowDrawList()->AddTriangleFilled(center - ImVec2(b / 2, -d / 2), center - ImVec2(0, d / 2), center + ImVec2(b / 2, d / 2), ImColor(0, 255, 0));
+					
+						if (Mem::IsValid(EntityList) && Mem::IsValid(LocalPlayer))
+						{
+							ClientSoldierEntity* LSoldier = LocalPlayer->getSoldier();
+							if (Mem::IsValid(LSoldier))
+							{
+								Vector3 Yaw = LSoldier->GetAngles();
+								Vector3 LPos = LSoldier->getPosition();
+								for (int i = 0; i < 64; i++)
+								{
+									ClientEntity* Ent = EntityList->getEntity(i);
+									if (Mem::IsValid(Ent))
+									{
+										if (Ent == LocalPlayer)
+											continue;
+
+										ClientSoldierEntity* EntSoldier = Ent->getSoldier();
+										if (Mem::IsValid(EntSoldier))
+										{
+											if (!(EntSoldier->HealthComponent->HP >= 1.f && EntSoldier->HealthComponent->maxHealth >= 100.f)) continue;
+											Vector3 CPos = EntSoldier->getPosition();
+											float dist = Vector3::Distance(CPos, LPos);
+											if (dist >= 2.f && dist <= Features::ESPDistance && EntSoldier->HealthComponent->HP >= 1.f && EntSoldier->HealthComponent->HP <= 100.f)
+											{
+												ImColor pColor = ImColor(255, 0, 0);
+												if (Ent->getTeam() == LocalPlayer->getTeam()) {
+													if (!Features::ESPShowFriends) continue;
+													ImColor pColor = ImColor(0, 255, 0);
+												}
+
+												float r_1 = LPos.z - CPos.z;
+												float r_2 = LPos.x - CPos.x;
+
+												float x_1 = r_2 * (float)cos((long double)-Yaw.x) - r_1 * sin((long double)-Yaw.x);
+												float y_1 = r_2 * (float)sin((long double)-Yaw.x) + r_1 * cos((long double)-Yaw.x);
+
+												ImGui::GetWindowDrawList()->AddCircleFilled(center + ImVec2(x_1, y_1), 2, ImColor(255, 0, 0));
+											}
+										}
+
+									}
+								}
+							}
+						}
+						ImGui::End();
+					}
+				}
+
+				// HEALTH RESET
+				/*ClientEntity* LocalPlayer = Game::GetLocalPlayer();
+				if (LocalPlayer->getSoldier()->HealthComponent->HP <= 30.f) {
+					LocalPlayer->getSoldier()->resetHealth();
+				}*/
+
 				if (Features::ESP)
 				{
-					CEntity* LocalPlayer = Game::GetLocalPlayer();
-					if (Mem::IsValid(LocalPlayer) && Mem::IsValid(LocalPlayer->GetSoldier()))
+					ClientEntity* LocalPlayer = Game::GetLocalPlayer();
+					if (Mem::IsValid(LocalPlayer) && Mem::IsValid(LocalPlayer->getSoldier()))
 					{
-						CSoldier* LPSoldier = LocalPlayer->GetSoldier();
-						if ((Mem::IsValid(LPSoldier) && Mem::IsValid(LPSoldier->prediction)) || (Mem::IsValid(LocalPlayer->GetCurrentVehicle())))
+						ClientSoldierEntity* LPSoldier = LocalPlayer->getSoldier();
+						if ((Mem::IsValid(LPSoldier) && Mem::IsValid(LPSoldier->prediction)) || (Mem::IsValid(LocalPlayer->getVehicle())))
 						{
+
 							if (Features::ShowFOV)
 								DrawCircle(ScreenSX / 2.f, ScreenSY / 2.f, Color(0, 255, 255, 255), Aimbot::FOV, 25);
 
+							if (Features::Crosshair) {
+								DrawLine((ScreenSX / 2.f) - 15, ScreenSY / 2.f, (ScreenSX / 2.f) + 15, ScreenSY / 2.f, Color(255, 255, 255, 255));
+								DrawLine(ScreenSX / 2.f, (ScreenSY / 2.f) - 15, ScreenSX / 2.f, (ScreenSY / 2.f) + 15, Color(255, 255, 255, 255));
+							}
+								
 							//PLAYERS
-							CEntityList* EntityList = Game::GetEntityList();
-							ClientPlayerManager* PlayerManager = Game::GetClientPlayerManager();
+							ClientEntityList* EntityList = Game::GetEntityList();
 
-							/*if (Mem::IsValid(PlayerManager))
+							// SPECTATORS (warning)
+							ClientPlayerManager* PlayerManager = Game::GetClientPlayerManager();
+							if (Mem::IsValid(PlayerManager))
 							{
-								CSpectatorList* SpectatorList = PlayerManager->GetSpectators();
+								ClientSpectatorList* SpectatorList = Game::GetClientSpectatorsList();
 								if (Mem::IsValid(SpectatorList))
 								{
 									int ValidSpecs = 0;
 									bool FirstText = true;
 									for (int i = 0; i < 16; i++)
 									{
-										CSpectator* Spec = SpectatorList->GetSpectator(i);
-										if (Mem::IsValid(Spec) && LocalPlayer->GetPlayerView() == Spec->GetView())
+										ClientSpectator* Spec = SpectatorList->GetSpectator(i);
+										if (Mem::IsValid(Spec) && LocalPlayer->getPlayerView() == Spec->GetView())
 										{
 											if (FirstText)
 											{
@@ -147,58 +253,43 @@ void DX11Renderer::DX11RenderScene()
 										}
 									}
 								}
-							}*/
+							}
 
 							if (Mem::IsValid(EntityList))
 							{
-								std::ofstream outputFile;
-								outputFile.open(L"C:\\Users\\bestp\\Desktop\\log_ESP.log");
-								outputFile << "start" << std::endl;
 								for (int i = 0; i < 64; i++)
 								{
-									outputFile << i << " ===== " << std::endl;
-
-									CEntity* Ent = EntityList->GetEntity(i);
+									ClientEntity* Ent = EntityList->getEntity(i);
 									if (Mem::IsValid(Ent))
 									{
-										CSoldier* EntSoldier = Ent->GetSoldier();
-										outputFile << "CEntity->getSoldier() -- ok" << std::endl;
-										outputFile << "Is CSoldier valid: " << Mem::IsValid(EntSoldier) << std::endl;
-										if (Mem::IsValid(EntSoldier)) {
-											outputFile << "Soldier Name: " << Ent->Name << std::endl;
-											outputFile << "Is HealthComponent valid: " << Mem::IsValid(EntSoldier->HealthComponent) << std::endl;
-											if (Mem::IsValid(EntSoldier->HealthComponent)) {
-												outputFile << "HealthComponent HP: " <<  EntSoldier->HealthComponent->HP << std::endl;
-											}
-										}
-
+										ClientSoldierEntity* EntSoldier = Ent->getSoldier();
 										if (Mem::IsValid(EntSoldier) && Mem::IsValid(EntSoldier->HealthComponent) && EntSoldier->HealthComponent->HP >= 1.f && EntSoldier->HealthComponent->HP <= 100.f)
 										{
 											Vector3 HeadPos;
 											if (!EntSoldier->GetBonePosition(HeadPos, 53))
 												continue; 
-											HeadPos = EntSoldier->GetPosition() + Vector3(0.f, 2.f, 0.f);
-											outputFile << "HEAD: " << HeadPos.x << " " << HeadPos.y << " " << HeadPos.z << std::endl;
-
-											Vector3 FeetPos = EntSoldier->GetPosition();
+											HeadPos = EntSoldier->getPosition() + Vector3(0.f, 2.f, 0.f);
+											
+											Vector3 FeetPos = EntSoldier->getPosition();
 											Vector3 HeadSP;
 											Vector3 FeetSP;
 											float dist = 0.f;
 
-											dist = Vector3::Distance(FeetPos, LPSoldier->GetPosition());
+											dist = Vector3::Distance(FeetPos, LPSoldier->getPosition());
+
 											if (Game::W2S(HeadPos, HeadSP) && Game::W2S(FeetPos, FeetSP) && dist > 2.f && dist < Features::ESPDistance)
 											{
-												if (Ent->GetTeam() == LocalPlayer->GetTeam() && !Features::ESPShowFriends)
+												if (Ent->getTeam() == LocalPlayer->getTeam() && !Features::ESPShowFriends)
 													continue;
 
-												Color BoxColor = Color(255, 0, 255, 255);
+												Color BoxColor = Color(0, 162, 255, 255);
 
 												bool Enemy = false, Visible = false;
-												if (Ent->GetTeam() != LocalPlayer->GetTeam())
+												if (Ent->getTeam() != LocalPlayer->getTeam())
 												{
 													Enemy = true;
 
-													if(!EntSoldier->m_Occluded) // czy go widac?
+													if(!EntSoldier->IsOccluded()) 
 													{
 														Visible = true;
 														BoxColor = Color(0, 255, 0, 255);
@@ -234,7 +325,7 @@ void DX11Renderer::DX11RenderScene()
 													EntSoldier->GetBonePosition(fucking, i);
 													Game::W2S(fucking, f2);
 													DrawDXText(f2.x, f2.y, 0.5f, true, 0.f, Color(255, 255, 255, 255), true, "%i", i);
-												}*/ //BONES TEST
+												} //BONES TEST*/
 
 												if (Features::ShowBones)
 												{
@@ -248,7 +339,7 @@ void DX11Renderer::DX11RenderScene()
 													Vector3 fucking, f2;
 													EntSoldier->GetBonePosition(fucking, HEAD);
 													Game::W2S(fucking, f2);
-													//DrawCircle(f2.x, f2.y, Color(255, 0, 0, 255), 4.f, 10);
+													DrawCircle(f2.x, f2.y, Color(255, 0, 0, 255), 3.f, 10);
 													EntSoldier->GetBonePosition(ChestPos, CHEST);
 													EntSoldier->GetBonePosition(StomachPos, STOMACH);
 													EntSoldier->GetBonePosition(HipPos, HIP);
@@ -339,19 +430,18 @@ void DX11Renderer::DX11RenderScene()
 											}
 										}
 									}
-									if (Mem::IsValid(Ent->GetCurrentVehicle()) && Features::ShowVehicles)
+									if (Mem::IsValid(Ent->getVehicle()) && Features::ShowVehicles)
 									{
 										TransformAABBStruct _AABB;
 										Vector3 minSP, maxSP, cor2SP, cor3SP, cor4SP, cor5SP, cor6SP, cor7SP, NameSP;
-										CVehicleEntity* Vehicle = Ent->GetCurrentVehicle();
+										ClientVehicleEntity* Vehicle = Ent->getVehicle();
 										Matrix _Transform;
 										Vehicle->GetTransform(&_Transform);
 										Vector3 Position = Vector3(_Transform.m[3][0], _Transform.m[3][1], _Transform.m[3][2]);
 										glm::vec3 glmPos = glm::vec3(Position.x, Position.y, Position.z);
-
-										Color BoxColor = Color(255, 0, 255, 255);
-
-										if (Vehicle->GetTeam() != LocalPlayer->GetTeam())
+										
+										Color BoxColor = Color(0, 162, 255, 255);
+										if (Vehicle->getTeam() != LocalPlayer->getTeam())
 											BoxColor = Color(0, 255, 0, 255);
 										else
 											if (!Features::ESPShowFriends)
@@ -381,7 +471,7 @@ void DX11Renderer::DX11RenderScene()
 										max = glmPos + max * TransformMatrix;
 
 										Vector3 MyHeadPos;
-										LocalPlayer->GetSoldier()->GetBonePosition(MyHeadPos, HEAD);
+										LocalPlayer->getSoldier()->GetBonePosition(MyHeadPos, HEAD);
 
 										float dist = Vector3::Distance(Vector3(min.x, min.y, min.z), MyHeadPos);
 										if (dist >= 1.f && dist < Features::ESPDistance &&
@@ -413,7 +503,6 @@ void DX11Renderer::DX11RenderScene()
 										}
 									}
 								}
-								outputFile.close();
 							}
 						}
 					}
@@ -471,7 +560,7 @@ DWORD DX11Renderer::InitDevice(HMODULE _DllModule, const wchar_t* HWNDTarget)
 	PresentHook->Hook();
 	DX11HookPresent = PresentHook->GetOriginal<D3D11PresentHook>();
 
-	pfh = new CVMTHookManager64((QWORD**)BorderInputNode::Get()->input_node);
+	pfh = new CVMTHookManager64((QWORD**)BorderInputNode::getInstance()->input_node);
 	PerFrameHook = (PerFrameHook_t)pfh->dwGetMethodAddress(3);
 	pfh->dwHookMethod((DWORD64)HookedPerFrame, 3);
 

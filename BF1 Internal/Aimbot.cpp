@@ -4,14 +4,14 @@ float GetAngleBetweenVectors3D(Vector3 v1, Vector3 v2);
 Vector3 CalculatePerfectTrajectory(Vector3 From, Vector3 To, Vector3 EntityVelocity, float BulletVelocity, float Gravity);
 
 float Aimbot::SmoothFactor = 0.035;
-float Aimbot::FOV = 20.f;
-float Aimbot::Distance = 100.f;
+float Aimbot::FOV = 40.f;
+float Aimbot::Distance = 300.f;
 int Aimbot::Bone = HEAD;
 int Aimbot::RetargetTimer = 200;
 bool Aimbot::RandomBone = false;
 bool Aimbot::PrioritizeDistance = true;
 
-CSoldier* ActualTarget = nullptr;
+ClientSoldierEntity* ActualTarget = nullptr;
 
 bool IsAiming = false;
 
@@ -19,10 +19,10 @@ void AimbotThread()
 {
 	while (true)
 	{
-		CEntity* LocalPlayer = Game::GetLocalPlayer();
-		if (Mem::IsValid(LocalPlayer) && Mem::IsValid(LocalPlayer->GetSoldier()))
+		ClientEntity* LocalPlayer = Game::GetLocalPlayer();
+		if (Mem::IsValid(LocalPlayer) && Mem::IsValid(LocalPlayer->getSoldier()))
 		{
-			CSoldier* LPSoldier = LocalPlayer->GetSoldier();
+			ClientSoldierEntity* LPSoldier = LocalPlayer->getSoldier();
 			if (Mem::IsValid(LPSoldier) && Mem::IsValid(LPSoldier->prediction) && Mem::IsValid(LPSoldier->aim))
 			{
 				ImGuiIO& io = ImGui::GetIO();
@@ -35,16 +35,25 @@ void AimbotThread()
 						if (!IsAiming)
 						{
 							IsAiming = true;
+							if (Features::NoRecoil)
+								LPSoldier->SetRecoilEnabled(false);
+							if (Features::NoBreath)
+								LPSoldier->SetBreathEnabled(false);
 							if (Features::NoSway)
 								LPSoldier->SetSpreadEnabled(true);
 							if (Features::InstantHit)
 								LPSoldier->SetBulletData(true);
+							
 						}
 					}
 					if (!GetAsyncKeyState(0xA4) && !GetAsyncKeyState(VK_RBUTTON) && !GetAsyncKeyState(VK_LBUTTON) && IsAiming)
 					{
 						IsAiming = false;
 						ActualTarget = nullptr;
+					    if (Features::NoRecoil)
+							LPSoldier->SetRecoilEnabled(false);
+						if (Features::NoBreath)
+							LPSoldier->SetBreathEnabled(false);
 						if (Features::NoSway)
 							LPSoldier->SetSpreadEnabled(false);
 						if (Features::InstantHit)
@@ -56,16 +65,16 @@ void AimbotThread()
 
 		if ((GetAsyncKeyState(VK_RBUTTON) || GetAsyncKeyState(0xA4)) && Features::Aimbot)
 		{
-			CEntity* LocalPlayer = Game::GetLocalPlayer();
-			if (Mem::IsValid(LocalPlayer) && Mem::IsValid(LocalPlayer->GetSoldier()))
+			ClientEntity* LocalPlayer = Game::GetLocalPlayer();
+			if (Mem::IsValid(LocalPlayer) && Mem::IsValid(LocalPlayer->getSoldier()))
 			{
-				CSoldier* LPSoldier = LocalPlayer->GetSoldier();
+				ClientSoldierEntity* LPSoldier = LocalPlayer->getSoldier();
 				if (Mem::IsValid(LPSoldier) && Mem::IsValid(LPSoldier->prediction) && Mem::IsValid(LPSoldier->aim))
 				{
 					unsigned int Slot = LPSoldier->GetActiveSlot();
 					if (Slot == 0 || Slot == 1)
 					{
-						CEntityList* EntityList = Game::GetEntityList();
+						ClientEntityList* EntityList = Game::GetEntityList();
 						Vector3 MyPos = LPSoldier->GetShootSpace() - LPSoldier->GetSpawnOffset();
 						Vector3 MyAngles;
 						if (MyPos.Length() <= 1.f)
@@ -73,20 +82,20 @@ void AimbotThread()
 
 						float NearestOne = 750.f;
 						Vector3 AimHere = Vector3::Zero;
-						CSoldier* CurrentTarget = nullptr;
+						ClientSoldierEntity* CurrentTarget = nullptr;
 						int BoneToAim = -1;
 
 						if (Mem::IsValid(EntityList))
 						{
 							for (int i = 0; i < 64; i++)
 							{
-								CEntity* Ent = EntityList->GetEntity(i);
+								ClientEntity* Ent = EntityList->getEntity(i);
 								if (Mem::IsValid(Ent))
 								{
-									CSoldier* EntSoldier = Ent->GetSoldier();
+									ClientSoldierEntity* EntSoldier = Ent->getSoldier();
 									if (Mem::IsValid(EntSoldier) && Mem::IsValid(EntSoldier->HealthComponent) && Mem::IsValid(EntSoldier->prediction))
 									{
-										if (Ent->GetTeam() != LocalPlayer->GetTeam() && !EntSoldier->m_Occluded && Aimbot::Bone >= 0 && EntSoldier->HealthComponent->HP >= 1.f)
+										if (Ent->getTeam() != LocalPlayer->getTeam() && !EntSoldier->IsOccluded() && Aimbot::Bone >= 0 && EntSoldier->HealthComponent->HP >= 1.f)
 										{
 											static const eBones RandBones[] = { HEAD, CHEST, HIP, STOMACH, NECK, RIGHT_FEMUR, LEFT_FEMUR, LEFT_KNEE, RIGHT_KNEE };
 											if (!Aimbot::RandomBone)
@@ -135,6 +144,7 @@ void AimbotThread()
 						}
 						if (NearestOne <= Aimbot::Distance && CurrentTarget)
 						{
+							//Vector3 x = LPSoldier->aim->m_authorativeAiming->m_pFpsAimer->m_yaw;
 							if (Mem::IsValid(&Mem::ReadPtr<Vector3>({ (QWORD)LPSoldier, 0x668, 0x1A8, 0x24, 0x24 }, false)))
 							{
 								if (ActualTarget && CurrentTarget != ActualTarget)
